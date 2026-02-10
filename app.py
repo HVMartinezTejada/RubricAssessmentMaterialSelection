@@ -392,7 +392,7 @@ def mostrar_panel_profesor():
             duracion = st.sidebar.number_input(
                 "Duración (minutos):",
                 min_value=1,
-                max_value=240,
+                max_value=300,
                 value=60,
                 key="duracion_sesion"
             )
@@ -615,4 +615,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
