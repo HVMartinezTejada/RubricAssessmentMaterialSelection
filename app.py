@@ -7,7 +7,7 @@ import time
 
 # Configuración inicial de la página
 st.set_page_config(
-    page_title="Sistema de Evaluación por Rúbrica. Created by HV Martínez-Tejada",
+    page_title="Sistema de Evaluación por Rúbrica",
     page_icon="📊",
     layout="wide"
 )
@@ -35,30 +35,8 @@ def cargar_configuracion():
         with open('configuracion_rubrica.json', 'r', encoding='utf-8') as f:
             return json.load(f)
     except FileNotFoundError:
-        # Configuración por defecto
-        config = {
-            "descriptores": {
-                "C111": {
-                    "A": "Realiza una identificación exhaustiva y holística...",
-                    "B": "Identifica de manera exhaustiva requisitos técnicos...",
-                    "C": "Identifica correctamente los requisitos técnicos...",
-                    "D": "Identifica sólo los requisitos técnicos más obvios...",
-                    "E": "Omite requisitos técnicos clave..."
-                },
-                # ... (se completará con todos los descriptores)
-            },
-            "pesos": {
-                "ID11": 25,
-                "ID12": 25,
-                "ID13": 50
-            }
-        }
-        return config
-
-def guardar_configuracion(config):
-    """Guardar configuración de la rúbrica"""
-    with open('configuracion_rubrica.json', 'w', encoding='utf-8') as f:
-        json.dump(config, f, ensure_ascii=False, indent=2)
+        st.error("❌ Archivo 'configuracion_rubrica.json' no encontrado. Crea este archivo con los descriptores.")
+        st.stop()
 
 # ============================================
 # 2. INICIALIZACIÓN DEL ESTADO DE LA SESIÓN
@@ -76,38 +54,39 @@ if 'sesion_activa' not in st.session_state:
 if 'tiempo_fin' not in st.session_state:
     st.session_state.tiempo_fin = None
 
-if 'grupos_calificando' not in st.session_state:
-    st.session_state.grupos_calificando = {}
-
 # ============================================
 # 3. DEFINICIÓN DE ESTRUCTURAS DE DATOS
 # ============================================
 
-# Estructura completa de la rúbrica
+# Estructura de criterios por ID (CON SUBCRITERIOS)
 RUBRICA_ESTRUCTURA = {
-    "ID11: IDENTIFICAR": {
-        "C111": ["C1111", "C1112", "C1113", "C1114", "C1115"],
-        "C112": ["C1116", "C1117", "C1118", "C1119", "C11110"]
-    },
-    "ID12: FORMULAR": {
-        "C121": ["C1211", "C1212", "C1213", "C1214", "C1215"],
-        "C122": ["C1226", "C1227", "C1228", "C1229", "C12210"]
-    },
-    "ID13: RESOLVER": {
-        "C131": ["C1311", "C1312", "C1313", "C1314", "C1315"],
-        "C132": ["C1316", "C1317", "C1318", "C1319", "C13110"],
-        "C133": ["C13111", "C13112", "C13113", "C13114", "C13115"]
-    }
+    "ID11: IDENTIFICAR": ["C111", "C112"],
+    "ID12: FORMULAR": ["C121", "C122"],
+    "ID13: RESOLVER": ["C131", "C132", "C133"]
 }
 
-# Mapeo de códigos a descriptores (ejemplo para C111)
-DESCRIPTORES_EJEMPLO = {
-    "C111": {
-        "A": "Realiza una identificación exhaustiva y holística. Anticipa riesgos o conexiones no obvias entre los requisitos técnicos y las complejidades de la cadena de suministro global.",
-        "B": "Identifica de manera exhaustiva requisitos técnicos y vincula explícitamente varios factores de riesgo del documento (geopolíticos, ambientales, éticos) al contexto específico del caso.",
-        "C": "Identifica correctamente los requisitos técnicos primarios y secundarios. Menciona al menos un concepto del documento (ej: 'material crítico', 'riesgo regulatorio') aplicado al caso.",
-        "D": "Identifica sólo los requisitos técnicos más obvios. Menciona aspectos de suministro de forma superficial y desconectada.",
-        "E": "Omite requisitos técnicos clave y no considera aspectos de suministro o sostenibilidad."
+# Mapeo de niveles A-E a sus códigos de subcriterio
+SUBCRITERIOS_POR_NIVEL = {
+    "A": "1",  # Ej: C1111, C1211, C1311
+    "B": "2",  # Ej: C1112, C1212, C1312
+    "C": "3",  # Ej: C1113, C1213, C1313
+    "D": "4",  # Ej: C1114, C1214, C1314
+    "E": "5",  # Ej: C1115, C1215, C1315
+}
+
+# Para C112, C122, C132, C133 los códigos son diferentes
+SUBCRITERIOS_ESPECIALES = {
+    "C112": {
+        "A": "6", "B": "7", "C": "8", "D": "9", "E": "10"
+    },
+    "C122": {
+        "A": "6", "B": "7", "C": "8", "D": "9", "E": "10"
+    },
+    "C132": {
+        "A": "6", "B": "7", "C": "8", "D": "9", "E": "10"
+    },
+    "C133": {
+        "A": "11", "B": "12", "C": "13", "D": "14", "E": "15"
     }
 }
 
@@ -121,15 +100,31 @@ RANGOS_NUMERICOS = {
 }
 
 # ============================================
-# 4. FUNCIONES DE CÁLCULO
+# 4. FUNCIONES AUXILIARES
 # ============================================
+
+def obtener_codigo_subcriterio(criterio, nivel):
+    """Obtener el código completo del subcriterio (ej: C1111)"""
+    if criterio in SUBCRITERIOS_ESPECIALES:
+        num = SUBCRITERIOS_ESPECIALES[criterio][nivel]
+    else:
+        num = SUBCRITERIOS_POR_NIVEL[nivel]
+    
+    return f"{criterio}{num}"
+
+def obtener_descriptor(criterio, nivel):
+    """Obtener el descriptor para un criterio y nivel específico"""
+    if criterio in st.session_state.config["descriptores"]:
+        return st.session_state.config["descriptores"][criterio].get(nivel, "Descriptor no disponible")
+    return "Descriptor no disponible"
 
 def calcular_moda(calificaciones):
     """Calcular la moda (valor más frecuente) de una lista"""
     if not calificaciones:
         return None
     conteo = Counter(calificaciones)
-    return conteo.most_common(1)[0][0]
+    moda = conteo.most_common(1)[0][0]
+    return moda
 
 def letra_a_numero(letra):
     """Convertir letra de calificación a valor numérico central"""
@@ -159,7 +154,7 @@ def calcular_promedios_grupo(grupo_id):
     
     # Calcular moda por criterio
     for id_nombre, criterios in RUBRICA_ESTRUCTURA.items():
-        for criterio, _ in criterios.items():
+        for criterio in criterios:
             califs_criterio = [
                 cal["calificaciones"].get(criterio)
                 for cal in calificaciones_grupo
@@ -174,36 +169,31 @@ def calcular_promedios_grupo(grupo_id):
                 resultados["criterios"][criterio] = {
                     "cualitativa": moda,
                     "numerica": letra_a_numero(moda),
-                    "total_calificaciones": len(califs_criterio)
+                    "total_calificaciones": len(califs_criterio),
+                    "codigo_subcriterio": obtener_codigo_subcriterio(criterio, moda),
+                    "descriptor": obtener_descriptor(criterio, moda)
                 }
     
     # Calcular promedio por ID
     for id_nombre, criterios in RUBRICA_ESTRUCTURA.items():
         valores_criterios = []
-        for criterio in criterios.keys():
+        for criterio in criterios:
             if criterio in resultados["criterios"]:
                 valores_criterios.append(resultados["criterios"][criterio]["numerica"])
         
         if valores_criterios:
             resultados["ids"][id_nombre] = {
-                "promedio": sum(valores_criterios) / len(valores_criterios)
+                "promedio": sum(valores_criterios) / len(valores_criterios),
+                "peso": st.session_state.config["pesos"].get(id_nombre[:4], 0)
             }
     
     # Calcular nota final ponderada
-    pesos = st.session_state.config["pesos"]
     nota_final = 0.0
     
-    # Mapear nombres de ID a claves de pesos
-    id_to_peso_key = {
-        "ID11: IDENTIFICAR": "ID11",
-        "ID12: FORMULAR": "ID12",
-        "ID13: RESOLVER": "ID13"
-    }
-    
     for id_nombre, datos_id in resultados["ids"].items():
-        peso_key = id_to_peso_key.get(id_nombre)
-        if peso_key in pesos:
-            nota_final += datos_id["promedio"] * (pesos[peso_key] / 100)
+        peso_key = id_nombre[:4]  # "ID11", "ID12", "ID13"
+        peso = st.session_state.config["pesos"].get(peso_key, 0) / 100
+        nota_final += datos_id["promedio"] * peso
     
     resultados["final"] = nota_final
     
@@ -266,12 +256,17 @@ def mostrar_panel_estudiante():
         
         if ya_califico:
             st.warning("⚠️ Ya has enviado calificaciones para este grupo.")
+            st.info("Si necesitas modificar tus calificaciones, contacta al profesor.")
             return
     
     st.markdown("---")
     
     # Formulario de calificación
     if grupo_seleccionado and id_estudiante:
+        if not id_estudiante.strip():
+            st.error("Por favor, ingresa tu ID personal.")
+            return
+            
         st.subheader("Califica cada criterio:")
         
         calificaciones = {}
@@ -279,17 +274,19 @@ def mostrar_panel_estudiante():
         # Para cada ID de desempeño
         for id_nombre, criterios in RUBRICA_ESTRUCTURA.items():
             with st.expander(f"**{id_nombre}**", expanded=True):
-                st.caption(f"Peso en evaluación: {st.session_state.config['pesos'].get(id_nombre[:4], 0)}%")
+                peso = st.session_state.config["pesos"].get(id_nombre[:4], 0)
+                st.caption(f"Peso en evaluación: {peso}%")
                 
                 # Para cada criterio en este ID
-                for criterio, codigos in criterios.items():
+                for criterio in criterios:
                     st.markdown(f"#### {criterio}")
                     
-                    # Mostrar descriptores si están disponibles
-                    if criterio in DESCRIPTORES_EJEMPLO:
-                        with st.expander("📋 Ver descriptores de evaluación", expanded=False):
-                            for letra, descriptor in DESCRIPTORES_EJEMPLO[criterio].items():
-                                st.caption(f"**{letra}**: {descriptor}")
+                    # Mostrar todos los descriptores (subcriterios)
+                    with st.expander("📋 Ver descriptores de evaluación (A a E)", expanded=False):
+                        for nivel in ["A", "B", "C", "D", "E"]:
+                            codigo = obtener_codigo_subcriterio(criterio, nivel)
+                            descriptor = obtener_descriptor(criterio, nivel)
+                            st.markdown(f"**{nivel} ({codigo}):** {descriptor}")
                     
                     # Selector de calificación
                     calificacion = st.selectbox(
@@ -302,27 +299,35 @@ def mostrar_panel_estudiante():
                     calificaciones[criterio] = calificacion
         
         # Botón para enviar calificaciones
-        if st.button("✅ Enviar Calificaciones", type="primary"):
-            if calificaciones:
-                # Guardar calificación
-                nueva_calificacion = {
-                    "id_estudiante": id_estudiante,
-                    "grupo": grupo_seleccionado,
-                    "calificaciones": calificaciones,
-                    "fecha": datetime.now().isoformat()
-                }
-                
-                st.session_state.datos["calificaciones"].append(nueva_calificacion)
-                guardar_datos(st.session_state.datos)
-                
-                st.success("✅ Tus calificaciones han sido registradas exitosamente!")
-                st.balloons()
-                
-                # Limpiar formulario
-                time.sleep(2)
-                st.rerun()
-            else:
-                st.error("Debes calificar al menos un criterio.")
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            if st.button("✅ Enviar Calificaciones", type="primary", use_container_width=True):
+                if calificaciones:
+                    # Guardar calificación
+                    nueva_calificacion = {
+                        "id_estudiante": id_estudiante.strip(),
+                        "grupo": grupo_seleccionado,
+                        "calificaciones": calificaciones,
+                        "fecha": datetime.now().isoformat()
+                    }
+                    
+                    st.session_state.datos["calificaciones"].append(nueva_calificacion)
+                    guardar_datos(st.session_state.datos)
+                    
+                    st.success("✅ Tus calificaciones han sido registradas exitosamente!")
+                    st.balloons()
+                    
+                    # Mostrar resumen
+                    st.info("**Resumen de tu evaluación:**")
+                    for criterio, letra in calificaciones.items():
+                        codigo = obtener_codigo_subcriterio(criterio, letra)
+                        st.write(f"- {criterio}: **{letra}** ({codigo})")
+                    
+                    # Limpiar formulario después de 3 segundos
+                    time.sleep(3)
+                    st.rerun()
+                else:
+                    st.error("Debes calificar al menos un criterio.")
 
 # ============================================
 # 6. PANEL DEL PROFESOR
@@ -375,12 +380,14 @@ def mostrar_panel_profesor():
             guardar_datos(st.session_state.datos)
             
             st.sidebar.success(f"Sesión iniciada por {duracion} minutos")
+            st.rerun()
     
     with col2:
         if st.button("⏹️ Finalizar Sesión", use_container_width=True):
             st.session_state.sesion_activa = False
             st.session_state.tiempo_fin = None
             st.sidebar.warning("Sesión finalizada")
+            st.rerun()
     
     # Estado actual
     st.sidebar.subheader("📊 Estado Actual")
@@ -396,7 +403,12 @@ def mostrar_panel_profesor():
         st.sidebar.info("⏸️ Sesión INACTIVA")
     
     total_calificaciones = len(st.session_state.datos["calificaciones"])
+    estudiantes_unicos = len(set(
+        cal["id_estudiante"] for cal in st.session_state.datos["calificaciones"]
+    ))
+    
     st.sidebar.metric("Calificaciones recibidas", total_calificaciones)
+    st.sidebar.metric("Estudiantes únicos", estudiantes_unicos)
     
     # Configuración de pesos
     st.sidebar.subheader("⚖️ Configurar Pesos")
@@ -426,6 +438,7 @@ def mostrar_panel_profesor():
         st.session_state.config["pesos"]["ID13"] = nuevo_peso_id13
         guardar_configuracion(st.session_state.config)
         st.sidebar.success("Pesos actualizados!")
+        st.rerun()
     
     # Botón para calcular promedios
     st.sidebar.subheader("📈 Calcular Resultados")
@@ -441,15 +454,20 @@ def mostrar_panel_profesor():
             if resultados:
                 todos_resultados.append(resultados)
         
-        # Mostrar resultados en el área principal
+        # Guardar resultados en session state
         st.session_state.resultados_calculados = todos_resultados
+        st.sidebar.success(f"Resultados calculados para {len(todos_resultados)} grupos")
+        st.rerun()
     
     # Resetear datos (con confirmación)
     st.sidebar.subheader("⚠️ Administración")
     
     if st.sidebar.button("🗑️ Limpiar Todas las Calificaciones", use_container_width=True):
-        confirmar = st.sidebar.checkbox("Confirmar eliminación")
-        if confirmar:
+        st.sidebar.warning("Esta acción eliminará TODAS las calificaciones.")
+        confirmar = st.sidebar.checkbox("Confirmar eliminación (escribe 'CONFIRMAR' abajo)")
+        texto_confirmacion = st.sidebar.text_input("Escribe 'CONFIRMAR' para proceder:")
+        
+        if confirmar and texto_confirmacion == "CONFIRMAR":
             st.session_state.datos["calificaciones"] = []
             guardar_datos(st.session_state.datos)
             st.sidebar.error("Todas las calificaciones han sido eliminadas")
@@ -479,60 +497,69 @@ def mostrar_resultados():
         
         with st.expander(f"**{grupo}** - Nota Final: **{resultado['final']:.2f}/5.0**", expanded=True):
             
-            # Tabla de criterios
-            st.subheader("Calificaciones por Criterio")
+            # Tabla de criterios con subcriterios
+            st.subheader("Calificaciones por Criterio (con Subcriterios)")
             
             datos_tabla = []
             for criterio, datos in resultado["criterios"].items():
                 datos_tabla.append({
                     "Criterio": criterio,
-                    "Calificación": datos["cualitativa"],
+                    "Calif. Cualitativa": datos["cualitativa"],
+                    "Subcriterio": datos["codigo_subcriterio"],
                     "Nota Numérica": f"{datos['numerica']:.2f}",
-                    "Calificaciones Recibidas": datos["total_calificaciones"]
+                    "Calificaciones": datos["total_calificaciones"]
                 })
             
             df_criterios = pd.DataFrame(datos_tabla)
-            st.dataframe(df_criterios, use_container_width=True)
+            st.dataframe(df_criterios, use_container_width=True, hide_index=True)
+            
+            # Mostrar descriptores seleccionados
+            st.subheader("📋 Descriptores Seleccionados (Moda del Grupo)")
+            for criterio, datos in resultado["criterios"].items():
+                with st.expander(f"{criterio} - Nivel {datos['cualitativa']} ({datos['codigo_subcriterio']})"):
+                    st.markdown(f"**Descriptor:** {datos['descriptor']}")
             
             # Promedios por ID
-            st.subheader("Promedios por Indicador de Desempeño")
+            st.subheader("📈 Promedios por Indicador de Desempeño")
             
             col1, col2, col3 = st.columns(3)
             
-            pesos = st.session_state.config["pesos"]
-            
             for i, (id_nombre, datos_id) in enumerate(resultado["ids"].items()):
-                with [col1, col2, col3][i % 3]:
-                    # Extraer clave del ID para pesos
-                    id_key = id_nombre[:4]  # "ID11", "ID12", "ID13"
-                    peso = pesos.get(id_key, 0)
-                    
+                col = [col1, col2, col3][i % 3]
+                with col:
                     st.metric(
                         label=id_nombre,
                         value=f"{datos_id['promedio']:.2f}",
-                        delta=f"Peso: {peso}%"
+                        delta=f"Peso: {datos_id['peso']}%"
                     )
             
             # Nota final detallada
-            st.subheader("Cálculo de Nota Final")
+            st.subheader("🧮 Cálculo de Nota Final Ponderada")
             
             calculo_final = []
             for id_nombre, datos_id in resultado["ids"].items():
-                id_key = id_nombre[:4]
-                peso = pesos.get(id_key, 0) / 100
+                peso = datos_id["peso"] / 100
                 contribucion = datos_id["promedio"] * peso
                 
                 calculo_final.append({
                     "Indicador": id_nombre,
                     "Promedio": f"{datos_id['promedio']:.2f}",
-                    "Peso": f"{peso*100:.0f}%",
+                    "Peso": f"{datos_id['peso']}%",
                     "Contribución": f"{contribucion:.2f}"
                 })
             
-            df_calculo = pd.DataFrame(calculo_final)
-            st.dataframe(df_calculo, use_container_width=True)
+            # Agregar total
+            calculo_final.append({
+                "Indicador": "**TOTAL FINAL**",
+                "Promedio": "",
+                "Peso": "100%",
+                "Contribución": f"**{resultado['final']:.2f}**"
+            })
             
-            st.info(f"**Nota Final Ponderada: {resultado['final']:.2f} / 5.0**")
+            df_calculo = pd.DataFrame(calculo_final)
+            st.dataframe(df_calculo, use_container_width=True, hide_index=True)
+            
+            st.success(f"### Nota Final del {grupo}: **{resultado['final']:.2f} / 5.0**")
 
 # ============================================
 # 8. APLICACIÓN PRINCIPAL
@@ -550,13 +577,13 @@ def main():
     else:
         mostrar_panel_estudiante()
     
-    # Footer informativo
+    # Footer informativo (CORREGIDO)
     st.markdown("---")
     col1, col2, col3 = st.columns([1, 2, 1])
     
     with col2:
         st.caption("Sistema de Evaluación por Rúbrica - Ingeniería Mecánica")
-        st.caption("© 2024 - Universidad Nacional de Colombia")
+        st.caption("© 2024 - UPB University | Created by HV MartínezTejada")
 
 # ============================================
 # 9. EJECUCIÓN
