@@ -1,0 +1,58 @@
+{
+  "descriptores": {
+    "C111": {
+      "A": "Realiza una identificación exhaustiva y holística. Anticipa riesgos o conexiones no obvias entre los requisitos técnicos y las complejidades de la cadena de suministro global.",
+      "B": "Identifica de manera exhaustiva requisitos técnicos y vincula explícitamente varios factores de riesgo del documento (geopolíticos, ambientales, éticos) al contexto específico del caso.",
+      "C": "Identifica correctamente los requisitos técnicos primarios y secundarios. Menciona al menos un concepto del documento (ej: 'material crítico', 'riesgo regulatorio') aplicado al caso.",
+      "D": "Identifica sólo los requisitos técnicos más obvios. Menciona aspectos de suministro de forma superficial y desconectada.",
+      "E": "Omite requisitos técnicos clave y no considera aspectos de suministro o sostenibilidad."
+    },
+    "C112": {
+      "A": "Sintetiza y prioriza un espectro completo de restricciones, demostrando una comprensión profunda de los trade-offs entre el desempeño técnico y la resiliencia estratégica.",
+      "B": "Define un marco claro de restricciones que equilibra exigencias técnicas inmediatas con riesgos estratégicos a largo plazo (suministro, precio, reputación).",
+      "C": "Identifica restricciones técnicas y al menos una restricción estratégica clara (ej: dependencia de una región inestable, huella de carbono futura regulable).",
+      "D": "Identifica algunas restricciones técnicas, pero no profundiza en las estratégicas a largo plazo.",
+      "E": "Sólo considera restricciones básicas como costo o disponibilidad inmediata."
+    },
+    "C121": {
+      "A": "Diseña una estrategia integral e innovadora que redefine el problema para convertir las restricciones estratégicas en oportunidades de diseño sostenible y resiliente.",
+      "B": "Formula múltiples estrategias complementarias (ej: rediseño + diversificación) que abordan de manera integrada los desafíos técnicos y estratégicos.",
+      "C": "Formula una estrategia coherente y propone al menos una acción concreta para mitigar un riesgo de suministro, regulatorio o ambiental específico.",
+      "D": "Propone una estrategia simple de sustitución, con una mención genérica a 'reducir riesgos'.",
+      "E": "La estrategia se limita a elegir un material por propiedades, sin considerar riesgos externos."
+    },
+    "C122": {
+      "A": "Presenta una argumentación excepcionalmente crítica y profunda, cuestionando premisas y mostrando las implicaciones de segundo orden de sus decisiones en un contexto global.",
+      "B": "Teje una argumentación persuasiva donde los conceptos técnicos y estratégicos se refuerzan mutuamente, mostrando una visión balanceada.",
+      "C": "Sustenta sus decisiones con principios técnicos sólidos y cita correctamente al menos dos conceptos clave del documento para apoyar su razonamiento estratégico.",
+      "D": "Argumenta con principios técnicos básicos. La conexión con el documento es forzada o inexacta.",
+      "E": "La argumentación es anecdótica, carece de fundamento técnico o estratégico."
+    },
+    "C131": {
+      "A": "La decisión final es innovadora y está respaldada por un marco de evaluación multicriterio propio que integra de manera ejemplar la sostenibilidad y la gestión de riesgos.",
+      "B": "La decisión es el resultado de un proceso de ponderación sofisticado donde los criterios derivados del documento tienen un peso definido y crucial.",
+      "C": "Aplica métodos de selección de forma correcta y toma una decisión que equilibra de manera clara al menos un criterio técnico con uno estratégico (ej: peso vs. riesgo de suministro).",
+      "D": "Aplica métodos de forma mecánica. La decisión final muestra un intento mínimo de balance, pero es inconsistente.",
+      "E": "La decisión final es arbitraria o se basa en un solo criterio (ej: sólo el precio o sólo la resistencia)."
+    },
+    "C132": {
+      "A": "La comunicación es magistral, contando una 'historia' coherente que logra que la dimensión estratégica sea tan tangible y crucial como la técnica para cualquier interlocutor.",
+      "B": "Estructura la exposición para guiar al auditorio desde el problema técnico hasta la implicación estratégica, usando recursos efectivos para destacar esta conexión.",
+      "C": "Comunica de manera clara y ordenada tanto el análisis técnico como las conclusiones estratégicas principales.",
+      "D": "Expone el análisis técnico de forma básica, pero el razonamiento estratégico queda confuso o sepultado.",
+      "E": "La presentación es desorganizada y no logra comunicar el análisis."
+    },
+    "C133": {
+      "A": "Las conclusiones son profundamente críticas y prospectivas, proyectando el desempeño de su solución en distintos escenarios futuros y definiendo el rol del ingeniero como gestor de recursos y riesgos.",
+      "B": "Ofrece conclusiones reflexivas que explicitan los trade-offs aceptados, los desafíos futuros y las responsabilidades asumidas (ética, ambiental).",
+      "C": "Concluye recomendando un material y sintetiza cuáles fueron los riesgos estratégicos más importantes considerados en la decisión.",
+      "D": "Las conclusiones son genéricas y no van más allá de recomendar un material.",
+      "E": "Las conclusiones son una repetición de datos o están ausentes."
+    }
+  },
+  "pesos": {
+    "ID11": 25,
+    "ID12": 25,
+    "ID13": 50
+  }
+}
