@@ -36,7 +36,7 @@ def _acquire_lock(lockfile_path: str):
     import fcntl
     f = open(lockfile_path, "a", encoding="utf-8")
     fcntl.flock(f.fileno(), fcntl.LOCK_EX)
-    return f  # mantener abierto mientras dure el lock
+    return f
 
 
 def _release_lock(lock_handle):
@@ -60,7 +60,6 @@ def _load_json_shared(path: str, default: dict):
             with open(path, "r", encoding="utf-8") as f:
                 return json.load(f)
         except json.JSONDecodeError:
-            # Si quedó corrupto por algún motivo, mejor recuperar con default.
             return default
     finally:
         _release_lock(lock)
@@ -86,7 +85,6 @@ def _save_json_shared(path: str, data: dict):
 # ============================================
 
 def cargar_datos():
-    """Cargar calificaciones compartidas (multiusuario)."""
     default = {"calificaciones": [], "sesiones": []}
     datos = _load_json_shared(CALIFICACIONES_FILE, default)
     datos.setdefault("calificaciones", [])
@@ -95,12 +93,10 @@ def cargar_datos():
 
 
 def guardar_datos(datos):
-    """Guardar calificaciones compartidas (multiusuario)."""
     _save_json_shared(CALIFICACIONES_FILE, datos)
 
 
 def cargar_configuracion():
-    """Cargar configuración de rúbrica."""
     try:
         with open(CONFIG_FILE, "r", encoding="utf-8") as f:
             config = json.load(f)
@@ -123,7 +119,6 @@ def cargar_configuracion():
 
 
 def guardar_configuracion(config):
-    """Guardar configuración de rúbrica."""
     try:
         with open(CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(config, f, ensure_ascii=False, indent=2)
@@ -132,10 +127,6 @@ def guardar_configuracion(config):
 
 
 def cargar_estado_sesion():
-    """
-    Estado GLOBAL compartido para multiusuario.
-    Auto-expira si ya pasó el tiempo_fin.
-    """
     default = {
         "sesion_activa": False,
         "tiempo_fin": None,
@@ -184,9 +175,6 @@ def guardar_estado_sesion(
 
 
 def sync_estado_global_a_session_state():
-    """
-    Sincroniza el estado global a la sesión del usuario.
-    """
     estado = cargar_estado_sesion()
     st.session_state.sesion_activa = bool(estado.get("sesion_activa", False))
     st.session_state.tiempo_fin = datetime.fromisoformat(estado["tiempo_fin"]) if estado.get("tiempo_fin") else None
@@ -203,7 +191,6 @@ if "datos" not in st.session_state:
 if "config" not in st.session_state:
     st.session_state.config = cargar_configuracion()
 
-# Estas dos ahora se sincronizan desde estado_sesion.json
 if "sesion_activa" not in st.session_state:
     st.session_state.sesion_activa = False
 
@@ -249,6 +236,9 @@ RANGOS_NUMERICOS = {
     "E": (0.0, 3.0)
 }
 
+NIVELES_VALIDOS = ["A", "B", "C", "D", "E"]
+OPCIONES_NIVEL = ["— Selecciona —"] + NIVELES_VALIDOS
+
 
 # ============================================
 # 5. FUNCIONES AUXILIARES
@@ -288,7 +278,6 @@ def obtener_grupos_a_calificar(grupo_afiliacion):
 
 
 def verificar_calificacion_existente(id_estudiante, grupo_afiliacion, grupo_a_calificar):
-    # recargar datos compartidos por si otro usuario escribió
     st.session_state.datos = cargar_datos()
 
     id_limpio = id_estudiante.strip().upper()
@@ -370,7 +359,6 @@ def calcular_promedios_grupo(grupo_calificado):
 def mostrar_panel_estudiante():
     st.title("📝 Sistema de Evaluación por Pares")
 
-    # Sync desde archivo global (multiusuario)
     sync_estado_global_a_session_state()
 
     if not st.session_state.sesion_activa:
@@ -381,7 +369,6 @@ def mostrar_panel_estudiante():
         tiempo_actual = datetime.now()
         if tiempo_actual > st.session_state.tiempo_fin:
             st.error("⏰ El tiempo de calificación ha finalizado.")
-            # Auto-expira global (para que todos lo vean)
             guardar_estado_sesion(False, None, None, updated_by="auto-expire-student")
             st.session_state.sesion_activa = False
             return
@@ -451,20 +438,31 @@ def mostrar_panel_estudiante():
 
                     calificacion = st.selectbox(
                         f"Calificación para {criterio}:",
-                        ["A", "B", "C", "D", "E"],
+                        OPCIONES_NIVEL,
                         key=f"sel_{id_estudiante.strip()}_{grupo_afiliacion}_{grupo_a_calificar}_{criterio}",
-                        index=2
+                        index=0
                     )
 
-                    calificaciones[criterio] = calificacion
+                    calificaciones[criterio] = None if calificacion == "— Selecciona —" else calificacion
 
-        # --------- ✅ AQUI VA EL CHECKBOX + ENVÍO (DENTRO DE LA FUNCIÓN) ---------
+        # Validación: todos los criterios deben estar seleccionados
+        faltantes = [c for c, v in calificaciones.items() if v not in NIVELES_VALIDOS]
+        todo_seleccionado = (len(faltantes) == 0)
+
         st.markdown("---")
 
+        # Checkbox por evaluación (clave única) -> no necesitas resetear session_state manualmente
+        confirm_key = f"confirm_{id_estudiante.strip().upper()}_{grupo_afiliacion}_{grupo_a_calificar}"
         confirmado = st.checkbox(
             "Confirmo que revisé todas mis calificaciones antes de enviar.",
-            key="confirmacion_envio"
+            key=confirm_key
         )
+
+        if not todo_seleccionado:
+            st.warning(
+                "Aún faltan calificaciones por seleccionar. Completa estos criterios antes de enviar:\n\n"
+                + "\n".join([f"- {x}" for x in faltantes])
+            )
 
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:
@@ -472,44 +470,45 @@ def mostrar_panel_estudiante():
                 "✅ Enviar Calificaciones",
                 type="primary",
                 use_container_width=True,
-                disabled=not confirmado
+                disabled=(not confirmado) or (not todo_seleccionado)
             )
 
             if enviar:
-                if calificaciones:
-                    # recargar datos por si cambió entre tanto
-                    st.session_state.datos = cargar_datos()
+                if not todo_seleccionado:
+                    st.error("❌ No puedes enviar: aún tienes criterios sin seleccionar.")
+                    return
+                if not confirmado:
+                    st.error("❌ No puedes enviar: debes confirmar que revisaste todas las calificaciones.")
+                    return
 
-                    nueva_calificacion = {
-                        "id_estudiante": id_estudiante.strip(),
-                        "grupo_afiliacion": grupo_afiliacion,
-                        "grupo_calificado": grupo_a_calificar,
-                        "calificaciones": calificaciones,
-                        "fecha": datetime.now().isoformat()
-                    }
+                # recargar datos por si cambió entre tanto
+                st.session_state.datos = cargar_datos()
 
-                    st.session_state.datos["calificaciones"].append(nueva_calificacion)
-                    guardar_datos(st.session_state.datos)
+                nueva_calificacion = {
+                    "id_estudiante": id_estudiante.strip(),
+                    "grupo_afiliacion": grupo_afiliacion,
+                    "grupo_calificado": grupo_a_calificar,
+                    "calificaciones": calificaciones,
+                    "fecha": datetime.now().isoformat()
+                }
 
-                    st.success("✅ ¡Tus calificaciones han sido registradas exitosamente!")
-                    st.balloons()
+                st.session_state.datos["calificaciones"].append(nueva_calificacion)
+                guardar_datos(st.session_state.datos)
 
-                    # 🔄 resetear confirmación para que no quede marcada en la siguiente evaluación
-                    st.session_state.confirmacion_envio = False
+                st.success("✅ ¡Tus calificaciones han sido registradas exitosamente!")
+                st.balloons()
 
-                    with st.expander("📋 Ver resumen de tu evaluación", expanded=True):
-                        st.write(f"**Evaluador:** {id_estudiante.strip()} (del {grupo_afiliacion})")
-                        st.write(f"**Grupo evaluado:** {grupo_a_calificar}")
-                        st.write("**Calificaciones asignadas:**")
-                        for criterio, letra in calificaciones.items():
-                            codigo = obtener_codigo_subcriterio(criterio, letra)
-                            st.write(f"- {criterio}: **{letra}** ({codigo})")
+                with st.expander("📋 Ver resumen de tu evaluación", expanded=True):
+                    st.write(f"**Evaluador:** {id_estudiante.strip()} (del {grupo_afiliacion})")
+                    st.write(f"**Grupo evaluado:** {grupo_a_calificar}")
+                    st.write("**Calificaciones asignadas:**")
+                    for criterio, letra in calificaciones.items():
+                        codigo = obtener_codigo_subcriterio(criterio, letra)
+                        st.write(f"- {criterio}: **{letra}** ({codigo})")
 
-                    st.markdown("---")
-                    if st.button("📝 Calificar Otro Grupo"):
-                        st.rerun()
-                else:
-                    st.error("Debes calificar al menos un criterio.")
+                st.markdown("---")
+                if st.button("📝 Calificar Otro Grupo"):
+                    st.rerun()
 
 
 # ============================================
@@ -526,7 +525,6 @@ def mostrar_panel_profesor():
 
     st.sidebar.success("✅ Acceso autorizado")
 
-    # Sync estado global
     sync_estado_global_a_session_state()
 
     st.sidebar.subheader("🕒 Gestión de Sesiones")
@@ -547,7 +545,6 @@ def mostrar_panel_profesor():
             fin = datetime.now() + timedelta(minutes=int(duracion))
             guardar_estado_sesion(True, fin, int(duracion), updated_by="profesor")
 
-            # Registrar en calificaciones.json (histórico)
             st.session_state.datos = cargar_datos()
             st.session_state.datos["sesiones"].append({
                 "inicio": datetime.now().isoformat(),
@@ -565,7 +562,6 @@ def mostrar_panel_profesor():
             st.sidebar.warning("Sesión finalizada")
             st.rerun()
 
-    # Estado actual (desde archivo global)
     estado = cargar_estado_sesion()
     st.sidebar.subheader("📊 Estado Actual")
 
@@ -583,7 +579,6 @@ def mostrar_panel_profesor():
     else:
         st.sidebar.info("⏸️ Sesión INACTIVA")
 
-    # Estadísticas (recarga compartida)
     st.session_state.datos = cargar_datos()
     total_calificaciones = len(st.session_state.datos["calificaciones"])
     estudiantes_unicos = len(set(cal["id_estudiante"].upper() for cal in st.session_state.datos["calificaciones"]))
@@ -591,7 +586,6 @@ def mostrar_panel_profesor():
     st.sidebar.metric("Calificaciones recibidas", total_calificaciones)
     st.sidebar.metric("Estudiantes únicos", estudiantes_unicos)
 
-    # Pesos
     st.sidebar.subheader("⚖️ Configurar Pesos")
 
     pesos = st.session_state.config.get("pesos", {})
@@ -628,7 +622,6 @@ def mostrar_panel_profesor():
         st.sidebar.success("✅ Pesos actualizados!")
         st.rerun()
 
-    # Calcular resultados
     st.sidebar.subheader("📈 Calcular Resultados")
     if st.sidebar.button("🧮 Calcular Promedios Finales", type="primary", use_container_width=True):
         todos_resultados = []
@@ -640,7 +633,6 @@ def mostrar_panel_profesor():
         st.sidebar.success(f"✅ Resultados calculados para {len(todos_resultados)} grupos")
         st.rerun()
 
-    # Administración
     st.sidebar.subheader("⚠️ Administración")
     if st.sidebar.button("🗑️ Limpiar Todas las Calificaciones", use_container_width=True):
         st.sidebar.warning("Esta acción eliminará TODAS las calificaciones.")
@@ -655,7 +647,6 @@ def mostrar_panel_profesor():
             st.sidebar.error("Todas las calificaciones han sido eliminadas")
             st.rerun()
 
-    # Datos en bruto
     st.sidebar.subheader("📁 Datos en Bruto")
     if st.sidebar.button("📋 Ver Datos Completos", use_container_width=True):
         st.session_state.mostrar_datos_brutos = True
