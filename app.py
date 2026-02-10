@@ -688,7 +688,7 @@ def main():
 
     st.markdown("---")
     st.caption("Sistema de Evaluación por Rúbrica - Ingeniería Mecánica")
-    st.caption("© 2024 - UPB University | Created by HV MartínezTejada")
+    st.caption("© 2025 2026 - UPB University | Created by HV MartínezTejada")
 
 
 # ============================================
@@ -697,3 +697,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
