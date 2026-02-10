@@ -71,7 +71,7 @@ if 'mostrar_datos_brutos' not in st.session_state:
 # ⚙️ CONFIGURACIÓN DE TIEMPO (MODIFICA ESTOS VALORES SI LO DESEAS)
 DURACION_PREDETERMINADA = 60     # Minutos por defecto (1 hora)
 TIEMPO_MINIMO = 15               # Mínimo de minutos permitidos
-TIEMPO_MAXIMO = 240              # Máximo de minutos permitidos (4 horas)
+TIEMPO_MAXIMO = 300              # Máximo de minutos permitidos (4 horas)
 
 # Lista de grupos
 GRUPOS_DISPONIBLES = [f"GRUPO {i}" for i in range(1, 9)]
@@ -700,3 +700,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
