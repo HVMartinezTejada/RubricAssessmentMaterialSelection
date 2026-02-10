@@ -607,7 +607,7 @@ def main():
     
     with col2:
         st.caption("Sistema de Evaluación por Rúbrica - Ingeniería Mecánica")
-        st.caption("© 2024 - UPB University | Created by HV MartínezTejada")
+        st.caption("© 2025 - UPB University | Created by HV MartínezTejada")
 
 # ============================================
 # 9. EJECUCIÓN
@@ -615,3 +615,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
