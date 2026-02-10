@@ -457,42 +457,58 @@ def mostrar_panel_estudiante():
                     calificaciones[criterio] = calificacion
 
         st.markdown("---")
-        col1, col2, col3 = st.columns([1, 2, 1])
 
-        with col2:
-            if st.button("✅ Enviar Calificaciones", type="primary", use_container_width=True):
-                if calificaciones:
-                    # recargar datos por si cambió entre tanto
-                    st.session_state.datos = cargar_datos()
+# ✅ Confirmación obligatoria antes de enviar
+confirmado = st.checkbox(
+    "Confirmo que revisé todas mis calificaciones antes de enviar.",
+    key="confirmacion_envio"
+)
 
-                    nueva_calificacion = {
-                        "id_estudiante": id_estudiante.strip(),
-                        "grupo_afiliacion": grupo_afiliacion,
-                        "grupo_calificado": grupo_a_calificar,
-                        "calificaciones": calificaciones,
-                        "fecha": datetime.now().isoformat()
-                    }
+col1, col2, col3 = st.columns([1, 2, 1])
 
-                    st.session_state.datos["calificaciones"].append(nueva_calificacion)
-                    guardar_datos(st.session_state.datos)
+with col2:
+    enviar = st.button(
+        "✅ Enviar Calificaciones",
+        type="primary",
+        use_container_width=True,
+        disabled=not confirmado
+    )
 
-                    st.success("✅ ¡Tus calificaciones han sido registradas exitosamente!")
-                    st.balloons()
+    if enviar:
+        if calificaciones:
+            # recargar datos por si cambió entre tanto
+            st.session_state.datos = cargar_datos()
 
-                    with st.expander("📋 Ver resumen de tu evaluación", expanded=True):
-                        st.write(f"**Evaluador:** {id_estudiante.strip()} (del {grupo_afiliacion})")
-                        st.write(f"**Grupo evaluado:** {grupo_a_calificar}")
-                        st.write("**Calificaciones asignadas:**")
-                        for criterio, letra in calificaciones.items():
-                            codigo = obtener_codigo_subcriterio(criterio, letra)
-                            st.write(f"- {criterio}: **{letra}** ({codigo})")
+            nueva_calificacion = {
+                "id_estudiante": id_estudiante.strip(),
+                "grupo_afiliacion": grupo_afiliacion,
+                "grupo_calificado": grupo_a_calificar,
+                "calificaciones": calificaciones,
+                "fecha": datetime.now().isoformat()
+            }
 
-                    st.markdown("---")
-                    if st.button("📝 Calificar Otro Grupo"):
-                        st.rerun()
-                else:
-                    st.error("Debes calificar al menos un criterio.")
+            st.session_state.datos["calificaciones"].append(nueva_calificacion)
+            guardar_datos(st.session_state.datos)
 
+            st.success("✅ ¡Tus calificaciones han sido registradas exitosamente!")
+            st.balloons()
+
+            # 🔄 resetear confirmación para que no quede marcada en la siguiente evaluación
+            st.session_state.confirmacion_envio = False
+
+            with st.expander("📋 Ver resumen de tu evaluación", expanded=True):
+                st.write(f"**Evaluador:** {id_estudiante.strip()} (del {grupo_afiliacion})")
+                st.write(f"**Grupo evaluado:** {grupo_a_calificar}")
+                st.write("**Calificaciones asignadas:**")
+                for criterio, letra in calificaciones.items():
+                    codigo = obtener_codigo_subcriterio(criterio, letra)
+                    st.write(f"- {criterio}: **{letra}** ({codigo})")
+
+            st.markdown("---")
+            if st.button("📝 Calificar Otro Grupo"):
+                st.rerun()
+        else:
+            st.error("Debes calificar al menos un criterio.")
 
 # ============================================
 # 7. PANEL PROFESOR
@@ -776,3 +792,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
