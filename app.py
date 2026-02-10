@@ -58,7 +58,10 @@ if 'tiempo_fin' not in st.session_state:
 # 3. DEFINICIÓN DE ESTRUCTURAS DE DATOS
 # ============================================
 
-# Estructura de criterios por ID (CON SUBCRITERIOS)
+# Lista de todos los grupos disponibles
+GRUPOS_DISPONIBLES = [f"GRUPO {i}" for i in range(1, 9)]
+
+# Estructura de criterios por ID
 RUBRICA_ESTRUCTURA = {
     "ID11: IDENTIFICAR": ["C111", "C112"],
     "ID12: FORMULAR": ["C121", "C122"],
@@ -67,27 +70,19 @@ RUBRICA_ESTRUCTURA = {
 
 # Mapeo de niveles A-E a sus códigos de subcriterio
 SUBCRITERIOS_POR_NIVEL = {
-    "A": "1",  # Ej: C1111, C1211, C1311
-    "B": "2",  # Ej: C1112, C1212, C1312
-    "C": "3",  # Ej: C1113, C1213, C1313
-    "D": "4",  # Ej: C1114, C1214, C1314
-    "E": "5",  # Ej: C1115, C1215, C1315
+    "A": "1",
+    "B": "2",
+    "C": "3",
+    "D": "4",
+    "E": "5"
 }
 
 # Para C112, C122, C132, C133 los códigos son diferentes
 SUBCRITERIOS_ESPECIALES = {
-    "C112": {
-        "A": "6", "B": "7", "C": "8", "D": "9", "E": "10"
-    },
-    "C122": {
-        "A": "6", "B": "7", "C": "8", "D": "9", "E": "10"
-    },
-    "C132": {
-        "A": "6", "B": "7", "C": "8", "D": "9", "E": "10"
-    },
-    "C133": {
-        "A": "11", "B": "12", "C": "13", "D": "14", "E": "15"
-    }
+    "C112": {"A": "6", "B": "7", "C": "8", "D": "9", "E": "10"},
+    "C122": {"A": "6", "B": "7", "C": "8", "D": "9", "E": "10"},
+    "C132": {"A": "6", "B": "7", "C": "8", "D": "9", "E": "10"},
+    "C133": {"A": "11", "B": "12", "C": "13", "D": "14", "E": "15"}
 }
 
 # Rango de calificaciones numéricas
@@ -109,7 +104,6 @@ def obtener_codigo_subcriterio(criterio, nivel):
         num = SUBCRITERIOS_ESPECIALES[criterio][nivel]
     else:
         num = SUBCRITERIOS_POR_NIVEL[nivel]
-    
     return f"{criterio}{num}"
 
 def obtener_descriptor(criterio, nivel):
@@ -123,8 +117,7 @@ def calcular_moda(calificaciones):
     if not calificaciones:
         return None
     conteo = Counter(calificaciones)
-    moda = conteo.most_common(1)[0][0]
-    return moda
+    return conteo.most_common(1)[0][0]
 
 def letra_a_numero(letra):
     """Convertir letra de calificación a valor numérico central"""
@@ -133,12 +126,25 @@ def letra_a_numero(letra):
     min_val, max_val = RANGOS_NUMERICOS[letra]
     return (min_val + max_val) / 2
 
-def calcular_promedios_grupo(grupo_id):
-    """Calcular promedios para un grupo específico"""
-    # Filtrar calificaciones del grupo
+def obtener_grupos_a_calificar(grupo_afiliacion):
+    """Obtener lista de grupos que se pueden calificar (excluyendo el propio)"""
+    return [g for g in GRUPOS_DISPONIBLES if g != grupo_afiliacion]
+
+def verificar_calificacion_existente(id_estudiante, grupo_afiliacion, grupo_a_calificar):
+    """Verificar si el estudiante ya calificó a este grupo"""
+    for cal in st.session_state.datos["calificaciones"]:
+        if (cal["id_estudiante"] == id_estudiante and 
+            cal["grupo_afiliacion"] == grupo_afiliacion and
+            cal["grupo_calificado"] == grupo_a_calificar):
+            return True
+    return False
+
+def calcular_promedios_grupo(grupo_calificado):
+    """Calcular promedios para un grupo específico (basado en las calificaciones recibidas)"""
+    # Filtrar calificaciones para el grupo calificado
     calificaciones_grupo = [
         cal for cal in st.session_state.datos["calificaciones"]
-        if cal["grupo"] == grupo_id
+        if cal["grupo_calificado"] == grupo_calificado
     ]
     
     if not calificaciones_grupo:
@@ -146,10 +152,11 @@ def calcular_promedios_grupo(grupo_id):
     
     # Estructura para resultados
     resultados = {
-        "grupo": grupo_id,
+        "grupo_calificado": grupo_calificado,
         "criterios": {},
         "ids": {},
-        "final": 0.0
+        "final": 0.0,
+        "total_evaluadores": len(set(cal["id_estudiante"] for cal in calificaciones_grupo))
     }
     
     # Calcular moda por criterio
@@ -171,7 +178,8 @@ def calcular_promedios_grupo(grupo_id):
                     "numerica": letra_a_numero(moda),
                     "total_calificaciones": len(califs_criterio),
                     "codigo_subcriterio": obtener_codigo_subcriterio(criterio, moda),
-                    "descriptor": obtener_descriptor(criterio, moda)
+                    "descriptor": obtener_descriptor(criterio, moda),
+                    "distribucion": dict(Counter(califs_criterio))
                 }
     
     # Calcular promedio por ID
@@ -191,7 +199,7 @@ def calcular_promedios_grupo(grupo_id):
     nota_final = 0.0
     
     for id_nombre, datos_id in resultados["ids"].items():
-        peso_key = id_nombre[:4]  # "ID11", "ID12", "ID13"
+        peso_key = id_nombre[:4]
         peso = st.session_state.config["pesos"].get(peso_key, 0) / 100
         nota_final += datos_id["promedio"] * peso
     
@@ -229,45 +237,60 @@ def mostrar_panel_estudiante():
         with col2:
             st.info(f"⏰ Tiempo restante: {minutos:02d}:{segundos:02d}")
     
-    # Selección de grupo e ID
+    # Paso 1: Información del estudiante
+    st.subheader("👤 Información del Estudiante")
+    
     col1, col2 = st.columns(2)
     
     with col1:
-        grupos_disponibles = [f"GRUPO {i}" for i in range(1, 9)]
-        grupo_seleccionado = st.selectbox(
-            "Selecciona tu grupo:",
-            grupos_disponibles,
-            key="grupo_estudiante"
-        )
-    
-    with col2:
         id_estudiante = st.text_input(
             "Tu ID personal:",
             placeholder="Ej: 202310001",
             key="id_estudiante"
         )
     
-    # Verificar si ya calificó
-    if grupo_seleccionado and id_estudiante:
-        ya_califico = any(
-            cal["grupo"] == grupo_seleccionado and cal["id_estudiante"] == id_estudiante
-            for cal in st.session_state.datos["calificaciones"]
+    with col2:
+        grupo_afiliacion = st.selectbox(
+            "Grupo al que perteneces:",
+            GRUPOS_DISPONIBLES,
+            key="grupo_afiliacion"
         )
-        
-        if ya_califico:
-            st.warning("⚠️ Ya has enviado calificaciones para este grupo.")
-            st.info("Si necesitas modificar tus calificaciones, contacta al profesor.")
-            return
     
     st.markdown("---")
     
-    # Formulario de calificación
-    if grupo_seleccionado and id_estudiante:
+    # Paso 2: Selección del grupo a calificar
+    if id_estudiante and grupo_afiliacion:
         if not id_estudiante.strip():
             st.error("Por favor, ingresa tu ID personal.")
             return
-            
-        st.subheader("Califica cada criterio:")
+        
+        st.subheader("🎯 Selección del Grupo a Evaluar")
+        
+        # Obtener grupos que se pueden calificar (excluyendo el propio)
+        grupos_a_calificar = obtener_grupos_a_calificar(grupo_afiliacion)
+        
+        if not grupos_a_calificar:
+            st.error("No hay grupos disponibles para calificar.")
+            return
+        
+        grupo_a_calificar = st.selectbox(
+            "Selecciona el grupo a calificar:",
+            grupos_a_calificar,
+            key="grupo_a_calificar"
+        )
+        
+        st.info(f"**Tu grupo:** {grupo_afiliacion} | **Grupo a calificar:** {grupo_a_calificar}")
+        
+        # Verificar si ya calificó a este grupo
+        if verificar_calificacion_existente(id_estudiante.strip(), grupo_afiliacion, grupo_a_calificar):
+            st.warning(f"⚠️ Ya has calificado al {grupo_a_calificar}. No puedes enviar otra calificación para el mismo grupo.")
+            return
+        
+        st.markdown("---")
+        
+        # Paso 3: Formulario de calificación
+        st.subheader("📋 Formulario de Calificación")
+        st.info(f"Estás evaluando al **{grupo_a_calificar}** (Tú perteneces al {grupo_afiliacion})")
         
         calificaciones = {}
         
@@ -282,7 +305,7 @@ def mostrar_panel_estudiante():
                     st.markdown(f"#### {criterio}")
                     
                     # Mostrar todos los descriptores (subcriterios)
-                    with st.expander("📋 Ver descriptores de evaluación (A a E)", expanded=False):
+                    with st.expander("📖 Ver descriptores de evaluación (A a E)", expanded=False):
                         for nivel in ["A", "B", "C", "D", "E"]:
                             codigo = obtener_codigo_subcriterio(criterio, nivel)
                             descriptor = obtener_descriptor(criterio, nivel)
@@ -290,23 +313,26 @@ def mostrar_panel_estudiante():
                     
                     # Selector de calificación
                     calificacion = st.selectbox(
-                        f"Selecciona calificación para {criterio}:",
+                        f"Calificación para {criterio}:",
                         ["A", "B", "C", "D", "E"],
-                        key=f"{id_estudiante}_{grupo_seleccionado}_{criterio}",
-                        index=2  # Default a "C" (Bueno)
+                        key=f"{id_estudiante}_{grupo_afiliacion}_{grupo_a_calificar}_{criterio}",
+                        index=2
                     )
                     
                     calificaciones[criterio] = calificacion
         
         # Botón para enviar calificaciones
+        st.markdown("---")
         col1, col2, col3 = st.columns([1, 2, 1])
+        
         with col2:
             if st.button("✅ Enviar Calificaciones", type="primary", use_container_width=True):
                 if calificaciones:
                     # Guardar calificación
                     nueva_calificacion = {
                         "id_estudiante": id_estudiante.strip(),
-                        "grupo": grupo_seleccionado,
+                        "grupo_afiliacion": grupo_afiliacion,
+                        "grupo_calificado": grupo_a_calificar,
                         "calificaciones": calificaciones,
                         "fecha": datetime.now().isoformat()
                     }
@@ -314,18 +340,23 @@ def mostrar_panel_estudiante():
                     st.session_state.datos["calificaciones"].append(nueva_calificacion)
                     guardar_datos(st.session_state.datos)
                     
-                    st.success("✅ Tus calificaciones han sido registradas exitosamente!")
+                    st.success("✅ ¡Tus calificaciones han sido registradas exitosamente!")
                     st.balloons()
                     
                     # Mostrar resumen
                     st.info("**Resumen de tu evaluación:**")
+                    st.write(f"**Evaluador:** {id_estudiante.strip()} (del {grupo_afiliacion})")
+                    st.write(f"**Grupo evaluado:** {grupo_a_calificar}")
+                    st.write("**Calificaciones asignadas:**")
+                    
                     for criterio, letra in calificaciones.items():
                         codigo = obtener_codigo_subcriterio(criterio, letra)
                         st.write(f"- {criterio}: **{letra}** ({codigo})")
                     
-                    # Limpiar formulario después de 3 segundos
-                    time.sleep(3)
-                    st.rerun()
+                    # Opción para calificar otro grupo
+                    st.markdown("---")
+                    if st.button("📝 Calificar Otro Grupo"):
+                        st.rerun()
                 else:
                     st.error("Debes calificar al menos un criterio.")
 
@@ -402,13 +433,14 @@ def mostrar_panel_profesor():
     else:
         st.sidebar.info("⏸️ Sesión INACTIVA")
     
+    # Estadísticas
     total_calificaciones = len(st.session_state.datos["calificaciones"])
     estudiantes_unicos = len(set(
         cal["id_estudiante"] for cal in st.session_state.datos["calificaciones"]
     ))
     
     st.sidebar.metric("Calificaciones recibidas", total_calificaciones)
-    st.sidebar.metric("Estudiantes únicos", estudiantes_unicos)
+    st.sidebar.metric("Estudiantes participantes", estudiantes_unicos)
     
     # Configuración de pesos
     st.sidebar.subheader("⚖️ Configurar Pesos")
@@ -447,10 +479,8 @@ def mostrar_panel_profesor():
         # Calcular para todos los grupos
         todos_resultados = []
         
-        for grupo_num in range(1, 9):
-            grupo_id = f"GRUPO {grupo_num}"
-            resultados = calcular_promedios_grupo(grupo_id)
-            
+        for grupo in GRUPOS_DISPONIBLES:
+            resultados = calcular_promedios_grupo(grupo)
             if resultados:
                 todos_resultados.append(resultados)
         
@@ -493,12 +523,12 @@ def mostrar_resultados():
     
     # Mostrar resultados por grupo
     for resultado in resultados:
-        grupo = resultado["grupo"]
+        grupo = resultado["grupo_calificado"]
         
-        with st.expander(f"**{grupo}** - Nota Final: **{resultado['final']:.2f}/5.0**", expanded=True):
+        with st.expander(f"**{grupo}** - Nota Final: **{resultado['final']:.2f}/5.0** (Evaluadores: {resultado['total_evaluadores']})", expanded=True):
             
             # Tabla de criterios con subcriterios
-            st.subheader("Calificaciones por Criterio (con Subcriterios)")
+            st.subheader("Calificaciones por Criterio (Moda del Grupo)")
             
             datos_tabla = []
             for criterio, datos in resultado["criterios"].items():
@@ -512,12 +542,6 @@ def mostrar_resultados():
             
             df_criterios = pd.DataFrame(datos_tabla)
             st.dataframe(df_criterios, use_container_width=True, hide_index=True)
-            
-            # Mostrar descriptores seleccionados
-            st.subheader("📋 Descriptores Seleccionados (Moda del Grupo)")
-            for criterio, datos in resultado["criterios"].items():
-                with st.expander(f"{criterio} - Nivel {datos['cualitativa']} ({datos['codigo_subcriterio']})"):
-                    st.markdown(f"**Descriptor:** {datos['descriptor']}")
             
             # Promedios por ID
             st.subheader("📈 Promedios por Indicador de Desempeño")
@@ -577,7 +601,7 @@ def main():
     else:
         mostrar_panel_estudiante()
     
-    # Footer informativo (CORREGIDO)
+    # Footer informativo
     st.markdown("---")
     col1, col2, col3 = st.columns([1, 2, 1])
     
