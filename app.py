@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import json
+from io import BytesIO
 from datetime import datetime, timedelta
 from collections import Counter
 import os
@@ -677,7 +678,71 @@ def mostrar_resultados():
         st.metric("Peor Nota", f"{min(r['final'] for r in resultados):.2f}")
 
     st.markdown("---")
+    # ==========================
+    # ⬇️ Excel todo-en-uno (snapshot)
+    # ==========================
+    st.subheader("⬇️ Snapshot descargable (Excel todo-en-uno)")
 
+    # Re-construir df_brutos aquí (para que el Excel sea autosuficiente)
+    st.session_state.datos = cargar_datos()
+    datos_brutos = []
+    for cal in st.session_state.datos["calificaciones"]:
+        fila = {
+            "ID Estudiante": cal["id_estudiante"],
+            "Grupo Afiliación": cal["grupo_afiliacion"],
+            "Grupo Calificado": cal["grupo_calificado"],
+            "Fecha": cal["fecha"][:19]
+        }
+        for criterio, valor in cal["calificaciones"].items():
+            fila[criterio] = valor
+        datos_brutos.append(fila)
+    df_brutos = pd.DataFrame(datos_brutos)
+
+    # Resumen por evaluador
+    df_eval = (
+        df_brutos
+        .groupby(["ID Estudiante", "Grupo Afiliación"], as_index=False)
+        .agg(
+            Evaluaciones=("Grupo Calificado", "count"),
+            Grupos_Evaluados=("Grupo Calificado", lambda s: ", ".join(sorted(set(s)))),
+            Ultima_Fecha=("Fecha", "max"),
+        )
+        .sort_values(["Grupo Afiliación", "ID Estudiante"])
+    )
+
+    # Resumen por grupo (nota final + evaluadores + promedios por ID)
+    filas_res = []
+    for r in resultados:
+        fila = {
+            "Grupo": r["grupo_calificado"],
+            "Nota_Final": round(r["final"], 4),
+            "Total_Evaluadores": r["total_evaluadores"],
+        }
+        # promedios por indicador (ID11/ID12/ID13)
+        for id_nombre, datos_id in r["ids"].items():
+            fila[id_nombre] = round(datos_id["promedio"], 4)
+            fila[f"{id_nombre} (peso %)"] = datos_id["peso"]
+        filas_res.append(fila)
+    df_resultados = pd.DataFrame(filas_res).sort_values("Grupo")
+
+    # Generar Excel en memoria
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df_brutos.to_excel(writer, index=False, sheet_name="Datos_Brutos")
+        df_eval.to_excel(writer, index=False, sheet_name="Por_Evaluador")
+        df_resultados.to_excel(writer, index=False, sheet_name="Resultados_Finales")
+    output.seek(0)
+
+    st.download_button(
+        "⬇️ Descargar Excel (bruto + evaluador + resultados)",
+        data=output,
+        file_name="snapshot_rubrica_todo_en_uno.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        use_container_width=True
+    )
+
+    st.markdown("---")
+    
     for resultado in resultados:
         grupo = resultado["grupo_calificado"]
         with st.expander(
@@ -749,7 +814,39 @@ def mostrar_datos_brutos():
 
     df_brutos = pd.DataFrame(datos_brutos)
     st.dataframe(df_brutos, use_container_width=True, height=400)
+    st.markdown("---")
+    st.subheader("⬇️ Snapshot descargable")
 
+    # 1) CSV bruto
+    csv_bruto = df_brutos.to_csv(index=False).encode("utf-8")
+    st.download_button(
+        "⬇️ Descargar CSV (datos brutos)",
+        data=csv_bruto,
+        file_name="snapshot_calificaciones_brutas.csv",
+        mime="text/csv",
+        use_container_width=True
+    )
+
+    # 2) Resumen por evaluador (trazabilidad)
+    df_eval = (
+        df_brutos
+        .groupby(["ID Estudiante", "Grupo Afiliación"], as_index=False)
+        .agg(
+            Evaluaciones=("Grupo Calificado", "count"),
+            Grupos_Evaluados=("Grupo Calificado", lambda s: ", ".join(sorted(set(s)))),
+            Ultima_Fecha=("Fecha", "max"),
+        )
+        .sort_values(["Grupo Afiliación", "ID Estudiante"])
+    )
+
+    csv_eval = df_eval.to_csv(index=False).encode("utf-8")
+    st.download_button(
+        "⬇️ Descargar CSV (resumen por evaluador)",
+        data=csv_eval,
+        file_name="snapshot_resumen_por_evaluador.csv",
+        mime="text/csv",
+        use_container_width=True
+    )
     st.subheader("📊 Estadísticas")
     col1, col2 = st.columns(2)
     with col1:
