@@ -727,10 +727,24 @@ def mostrar_resultados():
 
     # Generar Excel en memoria
     output = BytesIO()
-    with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        df_brutos.to_excel(writer, index=False, sheet_name="Datos_Brutos")
-        df_eval.to_excel(writer, index=False, sheet_name="Por_Evaluador")
-        df_resultados.to_excel(writer, index=False, sheet_name="Resultados_Finales")
+    # --- 1) Crear versión numérica de los datos brutos (misma estructura, valores convertidos) ---
+criterios_todos = [c for cs in RUBRICA_ESTRUCTURA.values() for c in cs]
+
+df_brutos_letras = df_brutos.copy()
+df_brutos_numeros = df_brutos.copy()
+
+for c in criterios_todos:
+    if c in df_brutos_numeros.columns:
+        df_brutos_numeros[c] = df_brutos_numeros[c].apply(
+            lambda x: letra_a_numero(x) if pd.notna(x) and x in NIVELES_VALIDOS else None
+        )
+
+# --- 2) Escribir Excel con 4 hojas (letras + números + evaluador + resultados) ---
+with pd.ExcelWriter(output, engine="openpyxl") as writer:
+    df_brutos_letras.to_excel(writer, index=False, sheet_name="Datos_Brutos_Letras")
+    df_brutos_numeros.to_excel(writer, index=False, sheet_name="Datos_Brutos_Numeros")
+    df_eval.to_excel(writer, index=False, sheet_name="Por_Evaluador")
+    df_resultados.to_excel(writer, index=False, sheet_name="Resultados_Finales")
     output.seek(0)
 
     st.download_button(
