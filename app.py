@@ -725,18 +725,18 @@ def mostrar_resultados():
         filas_res.append(fila)
     df_resultados = pd.DataFrame(filas_res).sort_values("Grupo")
 
-    # Generar Excel en memoria
-output = BytesIO()
-with pd.ExcelWriter(output, engine="openpyxl") as writer:
-    df_brutos.to_excel(writer, index=False, sheet_name="Datos_Brutos")
-    df_eval.to_excel(writer, index=False, sheet_name="Por_Evaluador")
-    df_resultados.to_excel(writer, index=False, sheet_name="Resultados_Finales")
+        # Generar Excel en memoria
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df_brutos.to_excel(writer, index=False, sheet_name="Datos_Brutos")
+        df_eval.to_excel(writer, index=False, sheet_name="Por_Evaluador")
+        df_resultados.to_excel(writer, index=False, sheet_name="Resultados_Finales")
 
-output.seek(0)
+    output.seek(0)
 
     st.download_button(
         "⬇️ Descargar Excel (bruto + evaluador + resultados)",
-        data=output,
+        data=output.getvalue(),
         file_name="snapshot_rubrica_todo_en_uno.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         use_container_width=True
