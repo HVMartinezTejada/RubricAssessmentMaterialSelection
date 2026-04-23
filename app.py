@@ -358,7 +358,7 @@ def calcular_promedios_grupo(grupo_calificado):
 # ============================================
 
 def mostrar_panel_estudiante():
-    st.title("📝 Sistema de Evaluación por Pares, para Riesgo y Cadenas de Suministro")
+    st.title("📝 Sistema de Evaluación por Pares. Riesgo ⚠️ & Cadenas de Suministro 🚚")
 
     sync_estado_global_a_session_state()
 
