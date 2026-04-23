@@ -726,22 +726,51 @@ def mostrar_resultados():
     df_resultados = pd.DataFrame(filas_res).sort_values("Grupo")
 
         # Generar Excel en memoria
+    #output = BytesIO()
+    #with pd.ExcelWriter(output, engine="openpyxl") as writer:
+     #   df_brutos.to_excel(writer, index=False, sheet_name="Datos_Brutos")
+     #   df_eval.to_excel(writer, index=False, sheet_name="Por_Evaluador")
+     #   df_resultados.to_excel(writer, index=False, sheet_name="Resultados_Finales")
+
+    #output.seek(0)
+
+    #st.download_button(
+     #   "⬇️ Descargar Excel (bruto + evaluador + resultados)",
+     #   data=output.getvalue(),
+     #   file_name="snapshot_rubrica_todo_en_uno.xlsx",
+     #   mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+     #   use_container_width=True
+    #)
+    # Generar Excel en memoria (con letras + números)
+    criterios_todos = [c for lista in RUBRICA_ESTRUCTURA.values() for c in lista]
+
+    df_brutos_letras = df_brutos.copy()
+    df_brutos_numeros = df_brutos.copy()
+
+    # Convertir A–E a valor numérico usando tu regla letra_a_numero()
+    for c in criterios_todos:
+        if c in df_brutos_numeros.columns:
+            df_brutos_numeros[c] = df_brutos_numeros[c].apply(
+                lambda x: letra_a_numero(x) if (x in NIVELES_VALIDOS) else None
+            )
+
     output = BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        df_brutos.to_excel(writer, index=False, sheet_name="Datos_Brutos")
+        df_brutos_letras.to_excel(writer, index=False, sheet_name="Datos_Brutos_Letras")
+        df_brutos_numeros.to_excel(writer, index=False, sheet_name="Datos_Brutos_Numeros")
         df_eval.to_excel(writer, index=False, sheet_name="Por_Evaluador")
         df_resultados.to_excel(writer, index=False, sheet_name="Resultados_Finales")
 
     output.seek(0)
 
     st.download_button(
-        "⬇️ Descargar Excel (bruto + evaluador + resultados)",
+        "⬇️ Descargar Excel (letras + números + evaluador + resultados)",
         data=output.getvalue(),
         file_name="snapshot_rubrica_todo_en_uno.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         use_container_width=True
     )
-
+    
     st.markdown("---")
     
     for resultado in resultados:
